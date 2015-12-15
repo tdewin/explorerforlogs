@@ -7,37 +7,11 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"time"
 	"strconv"
+	"archive/zip"
 )
 
-type LogCollection struct {
-	basepath string
-	all []*LogTree
-}
-type LogTree struct {
-	name string
-	base bool
-	logs []*Log
-}
-type Log struct {
-	name string
-	prefix string
-	path string
-	logtype string
-	parts []*PartialLog
-	genericname string
-}
-type PartialLog struct {
-  seq int
-  prefix string
-  name string
-  filename string
-  path string
-  directory string
-  firsttime *time.Time
-  firstimeUnix int64
-}
+
 
 
 func findBase(dirpath string) (bool,string) {
@@ -62,38 +36,81 @@ func findBase(dirpath string) (bool,string) {
 	
 	return found,basepath
 }
-func testDumpLogCollection(collection *LogCollection) {
-	fmt.Printf("+%s\n",collection.basepath)
+func testIndexerLogCollection(collection *LogCollection) {
+	fmt.Printf("Start Path %s\n####################\n",collection.basepath)
 	for _,tree := range collection.all {
-		fmt.Printf("++%s\n",tree.name)
+
+		fmt.Printf("\tTree %s\n",tree.name)
 		for _,log := range tree.logs {
-			fmt.Printf("+++%s %s\n",log.prefix,log.name)
+			
+			fmt.Printf("\t\tLog %s %s type : %s\n",log.prefix,log.name,log.logtype)
 			for _,plog := range log.parts {
-				fmt.Printf("++++%s %s %d\n",plog.prefix,plog.name,plog.seq)
+				fmt.Printf("\t\t Part %d %s %s  \n",plog.seq,plog.prefix,plog.name)
+				if(plog.compressed) {
+						fmt.Printf("\t\t   Compressed %s file %s in  %s \n",plog.compressedType,plog.path,plog.compressedParentPath)
+				} else {
+						fmt.Printf("\t\t   Plain %s \n",plog.path)
+				}
 			}
+			fmt.Println("")
 		}
+		fmt.Println("")
+		fmt.Println("")
 	}
 }
 
-func partialLog(dir string, file string, strarr *[]string) (*PartialLog) {
-	filepathstr := path.Clean(filepath.Join(dir,file))
-	prefix := (*strarr)[1]
-	logname := (*strarr)[2]
+func addToMatchingTreeLog(plog *PartialLog,logtree *LogTree,base bool) {
+	var log *Log
+				
+	for _,matchinglog := range logtree.logs {
+		if(matchinglog.prefix == plog.prefix && matchinglog.name == plog.name && matchinglog.path == plog.directory) {
+			log = matchinglog
+		} 
+	}
+	if(log == nil) {
+		if(base) {
+			newlog := Log{prefix:plog.prefix,name:plog.name,path:plog.directory,logtype:(fmt.Sprintf("%s.%s",plog.prefix,plog.name)),genericname:(fmt.Sprintf("%s.%s.<x>.log",plog.prefix,plog.name))}
+			log = &newlog
+		} else {
+			newlog := Log{prefix:plog.prefix,name:plog.name,path:plog.directory,logtype:plog.prefix,genericname:(fmt.Sprintf("%s.%s.<x>.log",plog.prefix,plog.name))}
+			log = &newlog
+		}
+		
+		logtree.logs = append(logtree.logs,log)
+	}
+	log.parts = append(log.parts,plog)
+}
+
+func partialLog(dir string, file string, strarr *[]string,compressed bool,compressedType string,parentfile string) (*PartialLog) {
+	var filepathstr string
+	parentpathstr := ""
+	
+	if(compressed) {
+		filepathstr = file
+		parentpathstr = path.Clean(filepath.Join(dir,parentfile))
+	} else {
+		filepathstr = path.Clean(filepath.Join(dir,file))
+	}
+	prefix := (*strarr)[3]
+	logname := (*strarr)[4]
 	
 	seqn := 0
-	if((*strarr)[3] != "") {
-		seqnt,err := strconv.Atoi((*strarr)[4])
+	if((*strarr)[5] != "") {
+		seqnt,err := strconv.Atoi((*strarr)[6])
 		if (err == nil) { seqn = seqnt }
 	}
 	
-	plog := PartialLog{seq:seqn,prefix:prefix,name:logname,filename:file,path:filepathstr,directory:dir}
+	plog := PartialLog{seq:seqn,prefix:prefix,name:logname,filename:file,path:filepathstr,directory:dir,compressed:compressed,compressedType:compressedType,compressedParentPath:parentpathstr}
 	//fmt.Printf("%s\n",plog.path)
 	return &plog
 }
 
 func buildLogIndex(dirpath string) (*LogCollection) {
-	matchfiles := regexp.MustCompile("(?i)^(job|task|svc|veeamagent|veeam|util|wmi|rts)[.](.*?)([.]([0-9]+))?[.]log$")
-
+	matchfiles := regexp.MustCompile("(?i)^([0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{6})?_)?(job|task|svc|veeamagent|veeam|util|wmiserver|rts)[.](.*?)([.]([0-9]+))?[.]log$")
+	matchcompressedfiles := regexp.MustCompile("(?i)^([0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{6})?_)?(job|task|svc|veeamagent|veeam|util|wmi|rts)[.](.*?)([.]([0-9]+))?[.](log[.]gz|zip)$")
+	matchcompressedjobfiles := regexp.MustCompile("(?i)^([0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{6})?_)?(.*?)[.](zip)$")
+	
+	subgzremover := regexp.MustCompile("(?i)[.]gz$")
 	
 	
 	files,err := ioutil.ReadDir(dirpath)
@@ -116,44 +133,54 @@ func buildLogIndex(dirpath string) (*LogCollection) {
 			
 			for _,jobfileinfo := range jobfiles {
 				if strarrs := matchfiles.FindStringSubmatch(jobfileinfo.Name());len(strarrs) > 1 {
-					plog := partialLog(jobpath,jobfileinfo.Name(),&strarrs)
-					
-					var log *Log
-					for _,matchinglog := range jobtree.logs {
-						if(matchinglog.prefix == plog.prefix && matchinglog.name == plog.name && matchinglog.path == plog.directory) {
-							log = matchinglog
+					plog := partialLog(jobpath,jobfileinfo.Name(),&strarrs,false,"","")
+					addToMatchingTreeLog(plog,&jobtree,false)
+				} else if strarrc := matchcompressedjobfiles.FindStringSubmatch(jobfileinfo.Name());len(strarrc) > 1 {
+					if(strarrc[4] == "zip") {
+						zippath := filepath.Join(jobpath,jobfileinfo.Name())
+						zipr, err := zip.OpenReader(zippath)
+						errorSoft(fmt.Sprintf("Could not read zip %s",zippath),err)
+						defer zipr.Close()
+						for _, f := range zipr.File {
+							if strarrz := matchfiles.FindStringSubmatch(f.Name);len(strarrz) > 1 { 
+								plog := partialLog(jobpath,f.Name,&strarrz,true,"zip",jobfileinfo.Name())
+								addToMatchingTreeLog(plog,&jobtree,false)
+								//fmt.Printf("\n :)))) %s %s \n",fileinfo.Name(),f.Name)
+							} else {
+								//fmt.Printf("\n :( %s %s :( \n",fileinfo.Name(),f.Name)
+							}
 						}
 					}
-					if(log == nil) {
-						newlog := Log{prefix:plog.prefix,name:plog.name,path:plog.directory,logtype:strarrs[1],genericname:(fmt.Sprintf("%s.%s.<x>.log",plog.prefix,plog.name))}
-						log = &newlog
-						jobtree.logs = append(jobtree.logs,log)
-					}
-					log.parts = append(log.parts,plog)
-				}
+				} else {
+					
+				} 
 			}
 			
 		} else {
 			if strarrs := matchfiles.FindStringSubmatch(fileinfo.Name());len(strarrs) > 1 {
-				//fmt.Printf("found file %s type %s :%s\n",strarrs[2],strarrs[1],fileinfo.Name())
-				plog := partialLog(dirpath,fileinfo.Name(),&strarrs)
-				
-				var log *Log
-				
-				for _,matchinglog := range maintree.logs {
-					if(matchinglog.prefix == plog.prefix && matchinglog.name == plog.name && matchinglog.path == plog.directory) {
-						log = matchinglog
+				plog := partialLog(dirpath,fileinfo.Name(),&strarrs,false,"","")
+				addToMatchingTreeLog(plog,&maintree,true)
+			} else if strarrc := matchcompressedfiles.FindStringSubmatch(fileinfo.Name());len(strarrc) > 1 {
+				if(strarrc[7] == "log.gz") { 
+					plog := partialLog(dirpath,subgzremover.ReplaceAllLiteralString(fileinfo.Name(),""),&strarrc,true,"gz",fileinfo.Name())
+					addToMatchingTreeLog(plog,&maintree,true)
+				} else  if(strarrc[7] == "zip") {
+					zippath := filepath.Join(dirpath,fileinfo.Name())
+					zipr, err := zip.OpenReader(zippath)
+					errorSoft(fmt.Sprintf("Could not read zip %s",),err)
+					defer zipr.Close()
+					for _, f := range zipr.File {
+						if strarrz := matchfiles.FindStringSubmatch(f.Name);len(strarrz) > 1 { 
+							plog := partialLog(dirpath,f.Name,&strarrz,true,"zip",fileinfo.Name())
+							addToMatchingTreeLog(plog,&maintree,true)
+						} else {
+							fmt.Printf("\n :( %s %s :( \n",fileinfo.Name(),f.Name)
+						}
 					}
 				}
-				if(log == nil) {
-					newlog := Log{prefix:plog.prefix,name:plog.name,path:plog.directory,logtype:strarrs[1],genericname:(fmt.Sprintf("%s.%s.<x>.log",plog.prefix,plog.name))}
-					log = &newlog
-					maintree.logs = append(maintree.logs,log)
-				}
-				log.parts = append(log.parts,plog)
 			} else {
 				//fmt.Printf("Don't know %s\n",fileinfo.Name())
-			}
+			} 
 		}
 	}
 	
