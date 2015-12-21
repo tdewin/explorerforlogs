@@ -3,16 +3,12 @@ package main
 import (
  "sync"
  "strings"
- "os"
- "bufio"
  "time"
  "io"
  "fmt"
  "sort"
  "regexp"
  "strconv"
- "compress/gzip"
- "archive/zip"
 )
 
 func testDetectionLogCollection(collection *LogCollection) {
@@ -46,28 +42,30 @@ func detectType(log * Log, settings Settings) {
 	for seq := 0;seq < partssize && !detected;seq++  {
 		part := log.parts[seq]
 		
-		f, err := os.Open(part.path)
-		defer f.Close()
-		errorSoft(fmt.Sprintf("Could not open %s",part.path),err)
+		plr,err := NewPartialLogReader(part)
+		defer plr.Close()
+		reader := plr.reader
 		
-		
-		reader := bufio.NewReader(f)
-		
-		scandone := false
-		for str,errread := reader.ReadString('\n');(!scandone && !detected && (errread == nil || errread == io.EOF));str,errread = reader.ReadString('\n') {
-			if strarrg := jobmatchgeneric.FindStringSubmatch(str);len(strarrg) > 1 {
-					detecttype = cleanupName(strarrg[1])
-					detected = true
-			} else if strarrc := jobmatchcmdline.FindStringSubmatch(str);len(strarrc) > 1  {
-				if(strarrc[1] != "backupjob") {
-					detecttype = cleanupName(strarrc[1])
-					detected = true
+		if  err == nil && reader != nil {
+			scandone := false
+			for str,errread := reader.ReadString('\n');(!scandone && !detected && (errread == nil || errread == io.EOF));str,errread = reader.ReadString('\n') {
+				if strarrg := jobmatchgeneric.FindStringSubmatch(str);len(strarrg) > 1 {
+						detecttype = cleanupName(strarrg[1])
+						detected = true
+				} else if strarrc := jobmatchcmdline.FindStringSubmatch(str);len(strarrc) > 1  {
+					if(strarrc[1] != "backupjob") {
+						detecttype = cleanupName(strarrc[1])
+						detected = true
+					}
+				}
+				
+				if (errread == io.EOF) {
+					scandone = true
 				}
 			}
-			
-			if (errread == io.EOF) {
-				scandone = true
-			}
+		} else {
+				fmt.Printf("Unable to open %s log \n",part.path)
+				fmt.Printf("%s\n",err)
 		}
 	}
 	
@@ -87,36 +85,39 @@ func detectFirstTime(log * Log, settings Settings) {
 	for seq := 0;seq < partssize;seq++  {
 		part := log.parts[seq]
 		
-		f, err := os.Open(part.path)
-		defer f.Close()
-		errorSoft(fmt.Sprintf("Could not open %s",part.path),err)
+		plr,err := NewPartialLogReader(part)
+		defer plr.Close()
+		reader := plr.reader
 		
-		reader := bufio.NewReader(f)
-		
-		detected := false
-		detectedtime := time.Unix(0,0)
-		
-		scandone := false
-		
-		for str,errread := reader.ReadString('\n');(!scandone && !detected && (errread == nil || errread == io.EOF));str,errread = reader.ReadString('\n') {
-			if strarrg := jobtimeline.FindStringSubmatch(str);len(strarrg) > 1 {
-					t,v :=  logtimeToEpoch(&strarrg[1],settings.utchours,settings.utcminutes)
-					if(t != -1) {
-						detected = true
-						detectedtime = *v
-					}
-					//fmt.Println(strarrg[4])
-			} 
-			if (errread == io.EOF) {
-				scandone = true
+		if  err == nil && reader != nil {
+			detected := false
+			detectedtime := time.Unix(0,0)
+			
+			scandone := false
+			
+			for str,errread := reader.ReadString('\n');(!scandone && !detected && (errread == nil || errread == io.EOF));str,errread = reader.ReadString('\n') {
+				if strarrg := jobtimeline.FindStringSubmatch(str);len(strarrg) > 1 {
+						t,v :=  logtimeToEpoch(&strarrg[1],settings.utchours,settings.utcminutes)
+						if(t != -1) {
+							detected = true
+							detectedtime = *v
+						}
+						//fmt.Println(strarrg[4])
+				} 
+				if (errread == io.EOF) {
+					scandone = true
+				}
 			}
-		}
-		part.firsttime = &detectedtime
-		part.firstimeUnix = detectedtime.Unix()
-		if(!detected) {
-			fmt.Printf("Unknown firsttime detection (is this a veeam log?) assigning fake %s \n\t %s\n",part.firsttime.Format(time.RFC3339),part.path)
+			part.firsttime = &detectedtime
+			part.firstimeUnix = detectedtime.Unix()
+			if(!detected) {
+				fmt.Printf("Unknown firsttime detection (is this a veeam log?) assigning fake %s \n\t %s\n",part.firsttime.Format(time.RFC3339),part.path)
+			} else {
+				//fmt.Printf("Detected %s : \n\t%s\n",part.firsttime.Format(time.RFC3339),part.path)
+			}
 		} else {
-			//fmt.Printf("Detected %s : \n\t%s\n",part.firsttime.Format(time.RFC3339),part.path)
+				fmt.Printf("Unable to open %s log \n",part.path)
+				fmt.Printf("%s\n",err)
 		}
 	}
 	
@@ -185,17 +186,16 @@ func findLogByPrefixAndName(collection *LogCollection,prefix string,name string)
 	return found,svcbackuplog
 }
 
-func detectUTC(col *LogCollection) (int,int) {
+func detectUTC(col *LogCollection,settingsptr *Settings) {
 	lutcvar := 0
 	lutcminvar := 0
+	detected := false
 	
 	found,svcbackuplog := findLogByPrefixAndName(col,"svc","veeambackup")
 	
 	
-	
 	if(found){
 		
-		detected := false
 		
 		utcdetect := regexp.MustCompile("Time zone has been set to \\(UTC([-+0-9]+):([0-9]+)\\)")
 		
@@ -206,71 +206,18 @@ func detectUTC(col *LogCollection) (int,int) {
 			part := svcbackuplog.parts[seq]
 			
 			
-			
-
-			var reader *bufio.Reader
-			var err error
-			if part.compressed && part.compressedType == "gz" {
-				f, errf := os.Open(part.compressedParentPath)
-				errorSoft(fmt.Sprintf("Could not open %s",part.compressedParentPath),errf)
-				defer f.Close()
-				
-				if (errf == nil) {
-					gz, errg := gzip.NewReader(f)
-					errorSoft(fmt.Sprintf("Could not open %s",part.compressedParentPath),errg)
-					defer gz.Close()
-					if(errg == nil) {
-						reader = bufio.NewReader(gz)
-					} else {
-						err = errg
-					}
-				} else {
-					err = errf
-				}
-				
-			} else if part.compressed && part.compressedType == "zip" {
-				f, errf := zip.OpenReader(part.compressedParentPath)
-				errorSoft(fmt.Sprintf("Could not open %s",part.compressedParentPath),errf)
+			plr,err := NewPartialLogReader(part)
+			defer plr.Close()
+			reader := plr.reader
 					
-				defer f.Close()
-				if (errf == nil) {	
-					for x := 0;x < len(f.File);x++ {
-						zf := f.File[x]
-						if part.path == zf.Name {
-							zfr, errz := zf.Open()
-							errorSoft(fmt.Sprintf("Could not open %s",part.compressedParentPath),errz)
-							defer zfr.Close()
-							if(errz == nil) {
-								reader = bufio.NewReader(zfr)
-							} else {
-								err = errz
-							}
-						}
-					}
-				} else {
-					err = errf
-				}
-			}else {
-				f, errf := os.Open(part.path)
-				errorSoft(fmt.Sprintf("Could not open %s",part.path),errf)
-				defer f.Close()
-				
-				if (errf == nil) {
-					reader = bufio.NewReader(f)
-				} else {
-					err = errf
-				}
-			}
-					
-			
 			
 			
 			if err == nil && reader != nil {
-				fmt.Printf("UTC detect on %s logs\n",part.path)
+				//fmt.Printf("UTC detect on %s logs\n",part.path)
 				scandone := false
 				for str,errread := reader.ReadString('\n');(!scandone && !detected && (errread == nil || errread == io.EOF));str,errread = reader.ReadString('\n') {
 					if strarrg := utcdetect.FindStringSubmatch(str);len(strarrg) > 1 {
-							fmt.Printf("Got match now process\n")
+							//fmt.Printf("Got match now process\n")
 							
 							lutcvar,err = strconv.Atoi(strarrg[1])
 							if (err == nil) {
@@ -295,10 +242,11 @@ func detectUTC(col *LogCollection) (int,int) {
 				fmt.Printf("Unable to open %s log \n",part.path)
 				fmt.Printf("%s\n",err)
 			}
-		}
-		
-		
-		
+		}	
 	}
-	return lutcvar,lutcminvar
+	if(!detected) {
+		fmt.Printf("Could not detect utc, defaulting to +0:00 \n")
+	}
+	settingsptr.utchours = lutcvar
+	settingsptr.utcminutes = lutcminvar
 }

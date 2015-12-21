@@ -34,7 +34,16 @@ type PartialLog struct {
   compressed bool
   compressedType string
   compressedParentPath string
+  events []*Event
 }
+type Event struct {
+	lineNumber int
+	description string
+	originalLine string
+}
+
+
+
 type LogByFirstTime []*PartialLog
 func (a LogByFirstTime) Len() int           { return len(a) }
 func (a LogByFirstTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
@@ -43,4 +52,6 @@ func (a LogByFirstTime) Less(i, j int) bool { return a[i].firstimeUnix < a[j].fi
 type Settings struct {
 	utchours int
 	utcminutes int
+	skew int64
+	fastSkipping int
 }

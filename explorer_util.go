@@ -14,12 +14,36 @@ var jobtimeline *regexp.Regexp
 var jobmatchgeneric *regexp.Regexp
 var jobmatchcmdline *regexp.Regexp
 
+var evmap map[string][]*MatchMaker
+func mapAppend(mapPTR *map[string][]*MatchMaker,name string,regexstr string,display string) {
+	lmap := *mapPTR
+	var lregex *regexp.Regexp
+	lregex,_ = regexp.Compile(regexstr)
+	mm := MatchMaker{lregex,display}
+	lmap[name] = append(lmap[name],&mm)
+}
+
+type MatchMaker struct {
+	p *regexp.Regexp
+	display string
+}
+
 func globals() {
 	jobtimeformat = regexp.MustCompile("(?:\\[)?([0-9]{1,2}).([0-9]{1,2}).([0-9]{4}) ([0-9]{1,2}):([0-9]{1,2}):([0-9]{1,2})(?:\\])?")
 	jobtimeline = regexp.MustCompile("^\\[([0-9]{1,2}.[0-9]{1,2}.[0-9]{4} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2})\\]\\s*[<]([0-9]+)[>]\\s*(Info|Warning|Error)\\s*(.*)")
 	
 	jobmatchgeneric = regexp.MustCompile("^\\[[^\\]]*\\] \\<[0-9]*\\> Info \\s* Job Type: ['\\[]([a-zA-Z ]*)['\\]]")
 	jobmatchcmdline = regexp.MustCompile("^CmdLineParams: \\[(?:START|start)([a-zA-Z]+)")
+	
+	
+	evmap = make(map[string][]*MatchMaker)
+	mapAppend(&evmap,"backupbackupsync","Starting job mode","Job Start")
+	mapAppend(&evmap,"backupbackupsync","Job has been stopped successfully. Name: \\[[^\\]]*\\], JobId: \\[[^\\]]*\\]","Job Stop")
+	mapAppend(&evmap,"vddkbackup","Starting job mode","Job Start")
+	mapAppend(&evmap,"vddkbackup","Job has been stopped successfully. Name: \\[[^\\]]*\\], JobId: \\[[^\\]]*\\]","Job Stop")
+	mapAppend(&evmap,"vddkreplica","Starting job mode","Job Start")
+	mapAppend(&evmap,"vddkreplica","Job has been stopped successfully. Name: \\[[^\\]]*\\], JobId: \\[[^\\]]*\\]","Job Stop")
+	
 }
 
 
@@ -54,3 +78,5 @@ func cleanupName(str string) (string) {
 	str = strings.ToLower(strings.Replace(str," ","",-1))
 	return str
 }
+
+
