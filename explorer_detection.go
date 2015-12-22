@@ -12,17 +12,17 @@ import (
 )
 
 func testDetectionLogCollection(collection *LogCollection) {
-	fmt.Printf("Start Path %s\n####################\n",collection.basepath)
-	for _,tree := range collection.all {
+	fmt.Printf("Start Path %s\n####################\n",collection.Basepath)
+	for _,tree := range collection.All {
 
-		fmt.Printf("\tTree %s\n",tree.name)
-		for _,log := range tree.logs {
+		fmt.Printf("\tTree %s\n",tree.Name)
+		for _,log := range tree.Logs {
 			
-			fmt.Printf("\t\tLog %s %s type : %s\n",log.prefix,log.name,log.logtype)
-			for _,plog := range log.parts {
-				fmt.Printf("\t\t Part %d %s %s \n",plog.seq,plog.prefix,plog.name)
-				if(plog.firstimeUnix != 0) {
-					fmt.Printf("\t\t\t Epoch Time : %d\n",plog.firstimeUnix)
+			fmt.Printf("\t\tLog %s %s type : %s\n",log.Prefix,log.Name,log.Logtype)
+			for _,plog := range log.Parts {
+				fmt.Printf("\t\t Part %d %s %s \n",plog.Seq,plog.Prefix,plog.Name)
+				if(plog.FirstimeUnix != 0) {
+					fmt.Printf("\t\t\t Epoch Time : %d\n",plog.FirstimeUnix)
 				} else {
 					fmt.Printf("\t\t\t No epoch time detected or just didn't try :\n")
 				}
@@ -38,9 +38,9 @@ func detectType(log * Log, settings Settings) {
 	detecttype := "unknown"
 	detected := false
 	
-	partssize := len(log.parts)
+	partssize := len(log.Parts)
 	for seq := 0;seq < partssize && !detected;seq++  {
-		part := log.parts[seq]
+		part := log.Parts[seq]
 		
 		plr,err := NewPartialLogReader(part)
 		defer plr.Close()
@@ -64,26 +64,26 @@ func detectType(log * Log, settings Settings) {
 				}
 			}
 		} else {
-				fmt.Printf("Unable to open %s log \n",part.path)
+				fmt.Printf("Unable to open %s log \n",part.Path)
 				fmt.Printf("%s\n",err)
 		}
 	}
 	
 	if(detected) {
-		log.logtype = detecttype
-		//fmt.Printf("Detected %s : %s\n",log.logtype,log.path)
+		log.Logtype = detecttype
+		//fmt.Printf("Detected %s : %s\n",log.Logtype,log.Path)
 	} else {
-		log.logtype = detecttype
-		fmt.Printf("Unknown logtype %s\n",log.path)
+		log.Logtype = detecttype
+		fmt.Printf("Unknown logtype %s\n",log.Path)
 	}
 }
 
 
 func detectFirstTime(log * Log, settings Settings) {
 
-	partssize := len(log.parts)
+	partssize := len(log.Parts)
 	for seq := 0;seq < partssize;seq++  {
-		part := log.parts[seq]
+		part := log.Parts[seq]
 		
 		plr,err := NewPartialLogReader(part)
 		defer plr.Close()
@@ -108,20 +108,20 @@ func detectFirstTime(log * Log, settings Settings) {
 					scandone = true
 				}
 			}
-			part.firsttime = &detectedtime
-			part.firstimeUnix = detectedtime.Unix()
+			part.Firsttime = &detectedtime
+			part.FirstimeUnix = detectedtime.Unix()
 			if(!detected) {
-				fmt.Printf("Unknown firsttime detection (is this a veeam log?) assigning fake %s \n\t %s\n",part.firsttime.Format(time.RFC3339),part.path)
+				fmt.Printf("Unknown firsttime detection (is this a veeam log?) assigning fake %s \n\t %s\n",part.Firsttime.Format(time.RFC3339),part.Path)
 			} else {
-				//fmt.Printf("Detected %s : \n\t%s\n",part.firsttime.Format(time.RFC3339),part.path)
+				//fmt.Printf("Detected %s : \n\t%s\n",part.Firsttime.Format(time.RFC3339),part.Path)
 			}
 		} else {
-				fmt.Printf("Unable to open %s log \n",part.path)
+				fmt.Printf("Unable to open %s log \n",part.Path)
 				fmt.Printf("%s\n",err)
 		}
 	}
 	
-	sort.Sort(LogByFirstTime(log.parts))
+	sort.Sort(LogByFirstTime(log.Parts))
 }
 
 //settings is passed without point so it is thread safe (copy of a very small struct)
@@ -133,18 +133,18 @@ func detectConcurrent(collection * LogCollection,detectBase bool,prefixFilter *[
 	}
 	
 	var wg sync.WaitGroup
-	for _,tree := range collection.all {
-		for i,_ := range tree.logs {
-			log := tree.logs[i]
+	for _,tree := range collection.All {
+		for i,_ := range tree.Logs {
+			log := tree.Logs[i]
 			shouldScan := true
 			
-			if(!detectBase && tree.base) {
+			if(!detectBase && tree.Base) {
 				shouldScan = false
 			}
 			if(prefixFilterOn) {
 				prefixMatch := false
 				for _,filter := range (*prefixFilter) {
-					if strings.EqualFold(filter,log.prefix) {
+					if strings.EqualFold(filter,log.Prefix) {
 						prefixMatch = true
 					}
 				}
@@ -170,12 +170,12 @@ func findLogByPrefixAndName(collection *LogCollection,prefix string,name string)
 	var svcbackuplog *Log
 	found := false
 	
-	for i :=0;i<len(collection.all) && !found;i++ {
-		tree := collection.all[i]
-		if tree.base {
-			for j :=0;j<len(tree.logs) && !found;j++ {
-				log := tree.logs[j]
-				if(strings.EqualFold(log.name,name) && strings.EqualFold(log.prefix,prefix)) {
+	for i :=0;i<len(collection.All) && !found;i++ {
+		tree := collection.All[i]
+		if tree.Base {
+			for j :=0;j<len(tree.Logs) && !found;j++ {
+				log := tree.Logs[j]
+				if(strings.EqualFold(log.Name,name) && strings.EqualFold(log.Prefix,prefix)) {
 					found = true
 					svcbackuplog = log
 				}
@@ -199,11 +199,11 @@ func detectUTC(col *LogCollection,settingsptr *Settings) {
 		
 		utcdetect := regexp.MustCompile("Time zone has been set to \\(UTC([-+0-9]+):([0-9]+)\\)")
 		
-		partssize := len(svcbackuplog.parts)
+		partssize := len(svcbackuplog.Parts)
 		for seq := 0;seq < partssize && !detected;seq++  {
 			
 		
-			part := svcbackuplog.parts[seq]
+			part := svcbackuplog.Parts[seq]
 			
 			
 			plr,err := NewPartialLogReader(part)
@@ -213,7 +213,7 @@ func detectUTC(col *LogCollection,settingsptr *Settings) {
 			
 			
 			if err == nil && reader != nil {
-				//fmt.Printf("UTC detect on %s logs\n",part.path)
+				//fmt.Printf("UTC detect on %s logs\n",part.Path)
 				scandone := false
 				for str,errread := reader.ReadString('\n');(!scandone && !detected && (errread == nil || errread == io.EOF));str,errread = reader.ReadString('\n') {
 					if strarrg := utcdetect.FindStringSubmatch(str);len(strarrg) > 1 {
@@ -239,7 +239,7 @@ func detectUTC(col *LogCollection,settingsptr *Settings) {
 					}
 				}
 			} else {
-				fmt.Printf("Unable to open %s log \n",part.path)
+				fmt.Printf("Unable to open %s log \n",part.Path)
 				fmt.Printf("%s\n",err)
 			}
 		}	

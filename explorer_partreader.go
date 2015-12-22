@@ -38,14 +38,14 @@ func NewPartialLogReader(part *PartialLog) (*PartialLogReader,error) {
 			plr := PartialLogReader{}
 			var err error
 			
-			if part.compressed && part.compressedType == "gz" {
-				f, errf := os.Open(part.compressedParentPath)
-				errorSoft(fmt.Sprintf("Could not open %s",part.compressedParentPath),errf)
+			if part.Compressed && part.CompressedType == "gz" {
+				f, errf := os.Open(part.CompressedParentPath)
+				errorSoft(fmt.Sprintf("Could not open %s",part.CompressedParentPath),errf)
 				plr.file = f
 				
 				if (errf == nil) {
 					gz, errg := gzip.NewReader(f)
-					errorSoft(fmt.Sprintf("Could not open %s",part.compressedParentPath),errg)
+					errorSoft(fmt.Sprintf("Could not open %s",part.CompressedParentPath),errg)
 					plr.gzipReader = gz
 					
 					if(errg == nil) {
@@ -57,17 +57,17 @@ func NewPartialLogReader(part *PartialLog) (*PartialLogReader,error) {
 					err = errf
 				}
 				
-			} else if part.compressed && part.compressedType == "zip" {
-				f, errf := zip.OpenReader(part.compressedParentPath)
-				errorSoft(fmt.Sprintf("Could not open %s",part.compressedParentPath),errf)
+			} else if part.Compressed && part.CompressedType == "zip" {
+				f, errf := zip.OpenReader(part.CompressedParentPath)
+				errorSoft(fmt.Sprintf("Could not open %s",part.CompressedParentPath),errf)
 				plr.zipReader = f
 				
 				if (errf == nil) {	
 					for x := 0;x < len(f.File);x++ {
 						zf := f.File[x]
-						if part.path == zf.Name {
+						if part.Path == zf.Name {
 							zfr, errz := zf.Open()
-							errorSoft(fmt.Sprintf("Could not open %s",part.compressedParentPath),errz)
+							errorSoft(fmt.Sprintf("Could not open %s",part.CompressedParentPath),errz)
 							plr.zipFileReader = &zfr
 							
 							if(errz == nil) {
@@ -81,8 +81,8 @@ func NewPartialLogReader(part *PartialLog) (*PartialLogReader,error) {
 					err = errf
 				}
 			}else {
-				f, errf := os.Open(part.path)
-				errorSoft(fmt.Sprintf("Could not open %s",part.path),errf)
+				f, errf := os.Open(part.Path)
+				errorSoft(fmt.Sprintf("Could not open %s",part.Path),errf)
 				plr.file = f
 				
 				if (errf == nil) {

@@ -53,7 +53,7 @@ func main() () {
 	utc := flag.Int("utc",24,"UTC adjustment, 24 will try to autodetect")
 	utcmin := flag.Int("utcmin",0,"For some countries")
 	fastskipping := flag.Int("fastskipping",25,"Fast Skipping (time stamp parse every x lines)")
-	outfile := flag.String("out","","'Where to output'")
+	outfile := flag.String("out","overview.html","'Where to output'")
 	flag.Parse()
 	
 	if(*veeamdir) {

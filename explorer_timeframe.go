@@ -8,17 +8,17 @@ import (
 )
 
 func testStampingLogCollection(collection *LogCollection) {
-	fmt.Printf("Start Path %s\n####################\n",collection.basepath)
-	for _,tree := range collection.all {
+	fmt.Printf("Start Path %s\n####################\n",collection.Basepath)
+	for _,tree := range collection.All {
 
-		fmt.Printf("\tTree %s\n",tree.name)
-		for _,log := range tree.logs {
+		fmt.Printf("\tTree %s\n",tree.Name)
+		for _,log := range tree.Logs {
 			
-			fmt.Printf("\t\tLog %s %s type : %s\n",log.prefix,log.name,log.logtype)
-			for _,plog := range log.parts {
-				fmt.Printf("\t\t Part %d %s %s \n",plog.seq,plog.prefix,plog.name)
-				for _,event := range plog.events {
-					fmt.Printf("\t\t\t Event %10d %s \n",event.lineNumber,event.description)
+			fmt.Printf("\t\tLog %s %s type : %s\n",log.Prefix,log.Name,log.Logtype)
+			for _,plog := range log.Parts {
+				fmt.Printf("\t\t Part %d %s %s \n",plog.Seq,plog.Prefix,plog.Name)
+				for _,event := range plog.Events {
+					fmt.Printf("\t\t\t Event %10d %s \n",event.LineNumber,event.Description)
 				}
 			}
 			fmt.Println("")
@@ -33,17 +33,17 @@ func timeStampLogs(tree *LogTree,settings Settings) {
 	var wg sync.WaitGroup
 	
 	
-	for i,_ := range tree.logs {
+	for i,_ := range tree.Logs {
 		wg.Add(1)
-		log := tree.logs[i]
+		log := tree.Logs[i]
 		go func(log *Log) {
 			defer wg.Done()
-			partssize := len(log.parts)
+			partssize := len(log.Parts)
 			
 			
 			for seq := 0;seq < partssize;seq++  {
 				prevtimestamp := int64(0)
-				part := log.parts[seq]
+				part := log.Parts[seq]
 			
 				plr,err := NewPartialLogReader(part)
 				defer plr.Close()
@@ -60,8 +60,8 @@ func timeStampLogs(tree *LogTree,settings Settings) {
 								if(t != -1 ) {
 									if (t-prevtimestamp) > settings.skew {
 										prevtimestamp = t
-										event := Event{lineNumber:lineno,description:fmt.Sprintf("Time Stamp at : %s",v.Format(time.RFC3339)),originalLine:str}
-										part.events = append(part.events,&event)
+										event := Event{LineNumber:lineno,Description:fmt.Sprintf("Time Stamp at : %s",v.Format(time.RFC3339)),OriginalLine:str}
+										part.Events = append(part.Events,&event)
 									}
 								}
 							} 
@@ -75,13 +75,13 @@ func timeStampLogs(tree *LogTree,settings Settings) {
 		}(log)
 	}
 	wg.Wait()
-	fmt.Printf("Parsed %s\n",tree.name)
+	fmt.Printf("Parsed %s\n",tree.Name)
 }
 
 
 func doNothing(tree *LogTree,settings Settings) { }
 func parseLogTree(collection * LogCollection,detectBase bool,treeFilter *[]string,  detectionFN func(*LogTree,Settings), settingsptr *Settings) (* LogCollection) {
-	subcol := LogCollection{basepath:collection.basepath}
+	subcol := LogCollection{Basepath:collection.Basepath}
 	
 	treeFilterOn := false
 	if(treeFilter != nil) {
@@ -90,21 +90,21 @@ func parseLogTree(collection * LogCollection,detectBase bool,treeFilter *[]strin
 	
 	var wg sync.WaitGroup
 	
-	for a,_ := range collection.all {
-		tree := collection.all[a]
+	for a,_ := range collection.All {
+		tree := collection.All[a]
 		shouldScan := true
 		
-		if(!detectBase && tree.base) {
+		if(!detectBase && tree.Base) {
 			shouldScan = false
 		} else if treeFilterOn {
 			gotMatch := false
-			for i,_ := range tree.logs {
-				log := tree.logs[i]
+			for i,_ := range tree.Logs {
+				log := tree.Logs[i]
 				
 				for _,filter := range (*treeFilter) {
-					if strings.EqualFold(filter,log.logtype) {
+					if strings.EqualFold(filter,log.Logtype) {
 						gotMatch = true
-						//fmt.Printf("%s %s\n",filter,log.logtype)
+						//fmt.Printf("%s %s\n",filter,log.Logtype)
 					}
 				}
 			}
@@ -114,7 +114,7 @@ func parseLogTree(collection * LogCollection,detectBase bool,treeFilter *[]strin
 		}
 		
 		if shouldScan {
-			subcol.all = append(subcol.all,tree)
+			subcol.All = append(subcol.All,tree)
 			wg.Add(1)
 	
 			go func() {

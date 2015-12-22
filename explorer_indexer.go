@@ -37,19 +37,19 @@ func findBase(dirpath string) (bool,string) {
 	return found,basepath
 }
 func testIndexerLogCollection(collection *LogCollection) {
-	fmt.Printf("Start Path %s\n####################\n",collection.basepath)
-	for _,tree := range collection.all {
+	fmt.Printf("Start Path %s\n####################\n",collection.Basepath)
+	for _,tree := range collection.All {
 
-		fmt.Printf("\tTree %s\n",tree.name)
-		for _,log := range tree.logs {
+		fmt.Printf("\tTree %s\n",tree.Name)
+		for _,log := range tree.Logs {
 			
-			fmt.Printf("\t\tLog %s %s type : %s\n",log.prefix,log.name,log.logtype)
-			for _,plog := range log.parts {
-				fmt.Printf("\t\t Part %d %s %s  \n",plog.seq,plog.prefix,plog.name)
-				if(plog.compressed) {
-						fmt.Printf("\t\t   Compressed %s file %s in  %s \n",plog.compressedType,plog.path,plog.compressedParentPath)
+			fmt.Printf("\t\tLog %s %s type : %s\n",log.Prefix,log.Name,log.Logtype)
+			for _,plog := range log.Parts {
+				fmt.Printf("\t\t Part %d %s %s  \n",plog.Seq,plog.Prefix,plog.Name)
+				if(plog.Compressed) {
+						fmt.Printf("\t\t   Compressed %s file %s in  %s \n",plog.CompressedType,plog.Path,plog.CompressedParentPath)
 				} else {
-						fmt.Printf("\t\t   Plain %s \n",plog.path)
+						fmt.Printf("\t\t   Plain %s \n",plog.Path)
 				}
 			}
 			fmt.Println("")
@@ -62,23 +62,23 @@ func testIndexerLogCollection(collection *LogCollection) {
 func addToMatchingTreeLog(plog *PartialLog,logtree *LogTree,base bool) {
 	var log *Log
 				
-	for _,matchinglog := range logtree.logs {
-		if(matchinglog.prefix == plog.prefix && matchinglog.name == plog.name && matchinglog.path == plog.directory) {
+	for _,matchinglog := range logtree.Logs {
+		if(matchinglog.Prefix == plog.Prefix && matchinglog.Name == plog.Name && matchinglog.Directory == plog.Directory) {
 			log = matchinglog
 		} 
 	}
 	if(log == nil) {
 		if(base) {
-			newlog := Log{prefix:plog.prefix,name:plog.name,path:plog.directory,logtype:(fmt.Sprintf("%s.%s",plog.prefix,plog.name)),genericname:(fmt.Sprintf("%s.%s.<x>.log",plog.prefix,plog.name))}
+			newlog := Log{Prefix:plog.Prefix,Name:plog.Name,Directory:plog.Directory,Path:(filepath.Join(plog.Directory,(fmt.Sprintf("%s.%s.<x>.log",plog.Prefix,plog.Name)))),Logtype:(fmt.Sprintf("%s.%s",plog.Prefix,plog.Name)),Genericname:(fmt.Sprintf("%s.%s.<x>.log",plog.Prefix,plog.Name))}
 			log = &newlog
 		} else {
-			newlog := Log{prefix:plog.prefix,name:plog.name,path:plog.directory,logtype:plog.prefix,genericname:(fmt.Sprintf("%s.%s.<x>.log",plog.prefix,plog.name))}
+			newlog := Log{Prefix:plog.Prefix,Name:plog.Name,Directory:plog.Directory,Path:(filepath.Join(plog.Directory,(fmt.Sprintf("%s.%s.<x>.log",plog.Prefix,plog.Name)))),Logtype:plog.Prefix,Genericname:(fmt.Sprintf("%s.%s.<x>.log",plog.Prefix,plog.Name))}
 			log = &newlog
 		}
 		
-		logtree.logs = append(logtree.logs,log)
+		logtree.Logs = append(logtree.Logs,log)
 	}
-	log.parts = append(log.parts,plog)
+	log.Parts = append(log.Parts,plog)
 }
 
 func partialLog(dir string, file string, strarr *[]string,compressed bool,compressedType string,parentfile string) (*PartialLog) {
@@ -100,8 +100,8 @@ func partialLog(dir string, file string, strarr *[]string,compressed bool,compre
 		if (err == nil) { seqn = seqnt }
 	}
 	
-	plog := PartialLog{seq:seqn,prefix:prefix,name:logname,filename:file,path:filepathstr,directory:dir,compressed:compressed,compressedType:compressedType,compressedParentPath:parentpathstr}
-	//fmt.Printf("%s\n",plog.path)
+	plog := PartialLog{Seq:seqn,Prefix:prefix,Name:logname,Filename:file,Path:filepathstr,Directory:dir,Compressed:compressed,CompressedType:compressedType,CompressedParentPath:parentpathstr}
+	//fmt.Printf("%s\n",plog.Path)
 	return &plog
 }
 
@@ -116,10 +116,10 @@ func buildLogIndex(dirpath string) (*LogCollection) {
 	files,err := ioutil.ReadDir(dirpath)
 	errorPanic(fmt.Sprintf("Could not list files in %s",dirpath),err)
 	
-	collection := LogCollection{basepath:dirpath}
-	maintree := LogTree{name:"base",base:true}
+	collection := LogCollection{Basepath:dirpath}
+	maintree := LogTree{Name:"base",Base:true}
 	
-	collection.all = append(collection.all,&maintree)
+	collection.All = append(collection.All,&maintree)
 	
 	
 	for _,fileinfo := range files {
@@ -128,8 +128,8 @@ func buildLogIndex(dirpath string) (*LogCollection) {
 			jobfiles,err := ioutil.ReadDir(jobpath)
 			errorPanic(fmt.Sprintf("Could not list files in %s",jobpath),err)
 			
-			jobtree := LogTree{name:fileinfo.Name(),base:false}
-			collection.all = append(collection.all,&jobtree)
+			jobtree := LogTree{Name:fileinfo.Name(),Base:false}
+			collection.All = append(collection.All,&jobtree)
 			
 			for _,jobfileinfo := range jobfiles {
 				if strarrs := matchfiles.FindStringSubmatch(jobfileinfo.Name());len(strarrs) > 1 {
