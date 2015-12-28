@@ -96,7 +96,7 @@ func detectFirstTime(log * Log, settings Settings) {
 			scandone := false
 			
 			for str,errread := reader.ReadString('\n');(!scandone && !detected && (errread == nil || errread == io.EOF));str,errread = reader.ReadString('\n') {
-				if strarrg := jobtimeline.FindStringSubmatch(str);len(strarrg) > 1 {
+				if strarrg := jobtimelineglobal.FindStringSubmatch(str);len(strarrg) > 1 {
 						t,v :=  logtimeToEpoch(&strarrg[1],settings.utchours,settings.utcminutes)
 						if(t != -1) {
 							detected = true
@@ -125,7 +125,7 @@ func detectFirstTime(log * Log, settings Settings) {
 }
 
 //settings is passed without point so it is thread safe (copy of a very small struct)
-
+//filter is prefix not type (cause this might not be detected)
 func detectConcurrent(collection * LogCollection,detectBase bool,prefixFilter *[]string,  detectionFN func(*Log,Settings), settingsptr *Settings) {
 	prefixFilterOn := false
 	if(prefixFilter != nil) {
@@ -146,6 +146,8 @@ func detectConcurrent(collection * LogCollection,detectBase bool,prefixFilter *[
 				for _,filter := range (*prefixFilter) {
 					if strings.EqualFold(filter,log.Prefix) {
 						prefixMatch = true
+					} else {
+						//fmt.Println("Ignoring "+log.Prefix)
 					}
 				}
 				

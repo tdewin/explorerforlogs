@@ -78,8 +78,8 @@ func timeStampLogs(tree *LogTree,settings Settings) {
 	fmt.Printf("Parsed %s\n",tree.Name)
 }
 
-
-func doNothing(tree *LogTree,settings Settings) { }
+//just a void function
+func treeFilter(tree *LogTree,settings Settings) { }
 func parseLogTree(collection * LogCollection,detectBase bool,treeFilter *[]string,  detectionFN func(*LogTree,Settings), settingsptr *Settings) (* LogCollection) {
 	subcol := LogCollection{Basepath:collection.Basepath}
 	
@@ -105,6 +105,8 @@ func parseLogTree(collection * LogCollection,detectBase bool,treeFilter *[]strin
 					if strings.EqualFold(filter,log.Logtype) {
 						gotMatch = true
 						//fmt.Printf("%s %s\n",filter,log.Logtype)
+					} else {
+						//fmt.Println(log.Name+":"+log.Logtype)
 					}
 				}
 			}

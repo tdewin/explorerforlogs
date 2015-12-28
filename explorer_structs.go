@@ -32,6 +32,8 @@ type PartialLog struct {
   Directory string
   Firsttime *time.Time
   FirstimeUnix int64
+  Lasttime *time.Time
+  LasttimeUnix int64  
   Compressed bool
   CompressedType string
   CompressedParentPath string

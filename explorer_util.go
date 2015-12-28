@@ -10,6 +10,7 @@ import (
 
 var jobtimeformat *regexp.Regexp
 var jobtimeline *regexp.Regexp
+var jobtimelineglobal *regexp.Regexp
 
 var jobmatchgeneric *regexp.Regexp
 var jobmatchcmdline *regexp.Regexp
@@ -30,7 +31,8 @@ type MatchMaker struct {
 
 func globals() {
 	jobtimeformat = regexp.MustCompile("(?:\\[)?([0-9]{1,2}).([0-9]{1,2}).([0-9]{4}) ([0-9]{1,2}):([0-9]{1,2}):([0-9]{1,2})(?:\\])?")
-	jobtimeline = regexp.MustCompile("^\\[([0-9]{1,2}.[0-9]{1,2}.[0-9]{4} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2})\\]\\s*[<]([0-9]+)[>]\\s*(Info|Warning|Error)\\s*(.*)")
+	jobtimelineglobal = regexp.MustCompile("^\\[([0-9]{1,2}.[0-9]{1,2}.[0-9]{4} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2})\\]\\s*[<]([ 0-9]+)[>]")
+	jobtimeline = regexp.MustCompile("^\\[([0-9]{1,2}.[0-9]{1,2}.[0-9]{4} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2})\\]\\s*[<]([ 0-9]+)[>]\\s*(Info|Warning|Error)\\s*(.*)")
 	
 	jobmatchgeneric = regexp.MustCompile("^\\[[^\\]]*\\] \\<[0-9]*\\> Info \\s* Job Type: ['\\[]([a-zA-Z ]*)['\\]]")
 	jobmatchcmdline = regexp.MustCompile("^CmdLineParams: \\[(?:START|start)([a-zA-Z]+)")

@@ -10,7 +10,25 @@ import (
 	"runtime"
 )
 
-
+func web(basepath string,settingsptr *Settings) {
+	collection := buildLogIndex(basepath)
+	if(settingsptr.utchours == 24) {
+			detectUTC(collection,settingsptr)
+			fmt.Printf("Using UTC %d:%d\n",settingsptr.utchours,settingsptr.utcminutes)
+	}
+	
+	filter := []string{"job","task","svc","rts","util","wmiserver"}
+	detectConcurrent(collection,true,&filter, detectFirstTime, settingsptr)
+		
+	filter = []string{"job"}
+	detectConcurrent(collection,false,&filter, detectType, settingsptr)
+	
+	//only showing tree's with one of the logs, by adding veeambackup, we add the whole base
+	filter = []string{"vddkbackup","vddkreplica","backupbackupsync","svc.veeambackup"}
+	filteredLogs := parseLogTree(collection,true,&filter, treeFilter, settingsptr)
+	
+	webServer(filteredLogs,settingsptr)
+}
 func timestamp(basepath string,settingsptr *Settings, outfile *string) {
 		
 		collection := buildLogIndex(basepath)
@@ -49,7 +67,7 @@ func main() () {
 	//input parsing
 	dirname := flag.String("dir",".","Provide log dir")
 	veeamdir := flag.Bool("veeamdir",false,"Use -veeamdir to use the default log dir %programdata%\\Veeam\\Backup , -dir will be overwritten")
-	action := flag.String("action","timestamp","'timestamp'")
+	action := flag.String("action","web","'timestamp' | 'web'")
 	utc := flag.Int("utc",24,"UTC adjustment, 24 will try to autodetect")
 	utcmin := flag.Int("utcmin",0,"For some countries")
 	fastskipping := flag.Int("fastskipping",25,"Fast Skipping (time stamp parse every x lines)")
@@ -75,6 +93,9 @@ func main() () {
 				switch *action {
 					case "timestamp": {
 						timestamp(basepath,&settings,outfile)
+					}
+					case "web": {
+						web(basepath,&settings)
 					}
 				}
 			} else {
